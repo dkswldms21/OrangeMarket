@@ -1,0 +1,43 @@
+services:
+  back:
+    build:
+      context: ./back
+      dockerfile: Dockerfile
+    container_name: back
+    networks:
+      - my-net1
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://13.125.170.142:3306/market?useSSL=false&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=admin
+      - SPRING_DATASOURCE_PASSWORD=qweasd123!
+    #      - SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT=org.hibernate.dialect.MySQL8Dialect
+    #      - SPRING_JPA_HIBERNATE_DDL_AUTO=validate
+    restart: always
+  front:
+    build:
+      context: ./front
+      dockerfile: Dockerfile
+    # depends_on:
+    #   - backend
+    ports:
+      - "3000:3000"
+    networks:
+      - my-net1
+  nginx:
+    image: nginx:latest
+    networks:
+      - my-net1
+    restart: always
+    volumes:
+      - ./conf/default.conf:/etc/nginx/conf.d/default.conf
+    ports:
+      - "80:80"
+    depends_on:
+      - back
+      - front
+
+networks:
+  my-net1:
+    driver: bridge

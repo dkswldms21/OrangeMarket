@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sist.back.mapper.AdminMapper">
+    <select id="getTotal" resultType="com.sist.back.vo.admin.TotalVO">
+   SELECT 
+    COUNT(*) AS cntPost, 
+    (SELECT COUNT(*) FROM `user` WHERE isdeleted = 0) AS cntUser,
+    (SELECT COUNT(*) FROM `board` WHERE isdeleted = 0) AS cntBbs,
+    (SELECT COUNT(*) FROM `qna` WHERE isdeleted = 0 AND isanswered = 0) AS cntQna,
+    COUNT(CASE WHEN date_format(create_dtm, '%Y') = date_format(now(), '%Y') THEN 1 END) As cntPostYear,
+    (SELECT COUNT(*) FROM `user` WHERE date_format(create_dtm, '%Y') = date_format(now(), '%Y') AND isdeleted = 0) As cntUserYear,
+    (SELECT COUNT(*) FROM `board` WHERE date_format(create_dtm, '%Y') = date_format(now(), '%Y') AND isdeleted = 0) As cntBbsYear,
+      (SELECT COUNT(*) FROM `qna` WHERE date_format(create_dtm, '%Y-%m-%d') = date_format(now(), '%Y-%m-%d') AND isanswered = 0 AND isdeleted = 0) As cntQnaDay
+  FROM post
+  where isdeleted = 0
+    </select>
+
+    <select id="postOverview" resultType="com.sist.back.vo.admin.PostOverviewVO" parameterType="String">
+    SELECT date_format(create_dtm, '%y년 %m월') as yearandmonth, COUNT(*) cnt, COUNT(CASE WHEN poststatus = 3 THEN 1 END) as dealcnt FROM post
+      WHERE isdeleted = 0 AND create_dtm is not null 
+      <if test="year != null and year != ''">
+      AND DATE_FORMAT(create_dtm, '%Y') = #{year}
+      </if>
+      GROUP BY date_format(create_dtm, '%y년 %m월')
+      ORDER BY date_format(create_dtm, '%y년 %m월') 
+    </select>
+
+    <select id="searchYear" resultType="String">
+    SELECT date_format(create_dtm, '%Y년') as searchyear FROM post
+      WHERE isdeleted = 0 AND create_dtm is not null
+      GROUP BY date_format(create_dtm, '%Y년')
+      ORDER BY date_format(create_dtm, '%Y년') DESC
+    </select>
+
+    <select id="postStatusCnt" resultType="String">
+    SELECT COUNT(*) cnt
+      FROM post
+    WHERE isdeleted = 0 
+    GROUP BY poststatus
+    ORDER BY poststatus
+    </select>
+    
+    <select id="userStatusCnt" resultType="com.sist.back.vo.admin.UserStatusCntVO">
+    SELECT 
+        DATE_FORMAT(create_dtm, '%y년 %m월') AS `date`, 
+        COUNT(*) AS `newCnt`, 
+        COUNT(CASE WHEN isdeleted = 1 THEN 1 END) AS `delCnt`
+    FROM `user`
+    WHERE create_dtm IS NOT NULL
+      AND create_dtm  <![CDATA[>=]]> DATE_SUB(NOW(), INTERVAL 12 MONTH)
+    GROUP BY DATE_FORMAT(create_dtm, '%y년 %m월')
+    ORDER BY DATE_FORMAT(create_dtm, '%y년 %m월');
+    </select>
+    
+    <select id="getQnaList" resultType="com.sist.back.vo.QnaVO">
+   SELECT * 
+      FROM `qna`
+    WHERE isanswered = 0
+      AND isdeleted = 0
+    ORDER BY create_dtm desc
+    limit 6
+    </select>
+    
+    <select id="getUserRank" resultType="com.sist.back.vo.admin.UserRankVO">
+   SELECT p.userkey, u.nickname, u.email, u.imgurl, COUNT(*) as cellqty, u.mannertemp, SUM(p.lastprice) as cellprice
+      FROM `user` u
+      JOIN `post` p ON p.userkey = u.userkey
+    WHERE p.poststatus = 3 and p.isdeleted = 0 and u.isdeleted = 0
+    GROUP BY p.userkey
+    ORDER BY cellqty desc
+    limit 4
+    </select>
+
+    <select id="todayReport" resultType="com.sist.back.vo.admin.TodayReportVO">
+    SELECT COUNT(CASE WHEN p.poststatus = 3 THEN 1 END) AS dealcnt, 
+           IFNULL(SUM(IFNULL(p.lastprice, 0)), 0) AS dealSum,
+       COUNT(*) AS newPost,
+       (
+        SELECT COUNT(*) 
+          FROM `user` u
+        WHERE u.isdeleted = 0
+          AND DATE_FORMAT(u.create_dtm, '%Y-%m-%d') = DATE_FORMAT(now(), '%Y-%m-%d')
+        ) AS newUser,
+            (
+        SELECT COUNT(*) 
+          FROM `chatroom` c
+        WHERE c.isdeleted = 0
+          AND DATE_FORMAT(c.create_dtm, '%Y-%m-%d') = DATE_FORMAT(now(), '%Y-%m-%d')
+        ) AS newChat
+    FROM post p
+    WHERE p.isdeleted = 0
+      AND DATE_FORMAT(p.create_dtm, '%Y-%m-%d') = DATE_FORMAT(now(), '%Y-%m-%d')
+    </select>
+    
+    <select id="dealstatistic" resultType="com.sist.back.vo.admin.DealStatisticVO">
+      SELECT 
+      ROUND(AVG(CASE WHEN DATE(p.deal_dtm) BETWEEN DATE_SUB(NOW(), INTERVAL 7 DAY) AND NOW() THEN 1 END), 0) AS dayavg,
+      COUNT(CASE WHEN DATE(p.deal_dtm) = DATE_SUB(CURDATE(), INTERVAL 1 DAY) THEN 1 END) AS yesterday,
+      COUNT(CASE WHEN DATE(p.deal_dtm) = CURDATE() THEN 1 END) AS today,
+      ROUND(AVG(CASE WHEN WEEK(p.deal_dtm, 1) BETWEEN WEEK(DATE_SUB(NOW(), INTERVAL 4 WEEK), 1) AND WEEK(NOW(), 1) THEN 1 END), 0) AS weekavg,
+      COUNT(CASE WHEN WEEK(p.deal_dtm, 1) = WEEK(NOW(), 1) - 1 THEN 1 END) AS lastweek,
+      COUNT(CASE WHEN WEEK(p.deal_dtm, 1) = WEEK(NOW(), 1) THEN 1 END) AS thisweek,
+      ROUND(AVG(CASE WHEN MONTH(p.deal_dtm) BETWEEN MONTH(DATE_SUB(NOW(), INTERVAL 3 MONTH)) AND MONTH(NOW()) THEN 1 END), 0) AS monthavg,
+      COUNT(CASE WHEN MONTH(p.deal_dtm) = MONTH(NOW()) - 1 THEN 1 END) AS lastmonth,
+      COUNT(CASE WHEN MONTH(p.deal_dtm) = MONTH(NOW()) THEN 1 END) AS thismonth
+      FROM post p
+      WHERE p.isdeleted = 0 AND p.poststatus = 3
+    </select>
+    
+    <select id="catedealstatistic" resultType="com.sist.back.vo.categoryVO" parameterType="String">
+      SELECT 
+          c.*,
+          COUNT(*) AS dealcnt,
+          SUM(p.lastprice) AS dealprice
+      FROM post p
+      LEFT JOIN category c ON p.categorykey = c.categorykey
+      WHERE p.isdeleted = 0 
+        AND p.poststatus = 3 
+        AND c.isdeleted = 0
+        <if test="type == null or type == 1">
+        AND DATE(p.deal_dtm) = DATE(NOW())
+        </if>
+        <if test="type == 2">
+        AND WEEK(p.deal_dtm, 1) BETWEEN WEEK(DATE_SUB(NOW(), INTERVAL 1 WEEK), 1) AND WEEK(NOW(), 1)
+        </if>
+        <if test="type == 3">
+        AND p.deal_dtm BETWEEN DATE_SUB(NOW(), INTERVAL 1 MONTH) AND NOW()
+        </if>
+      GROUP BY p.categorykey
+      ORDER BY dealcnt DESC, dealprice DESC
+      LIMIT 5
+    </select>
+</mapper>

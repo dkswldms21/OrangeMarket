@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sist.back.mapper.BadgeMapper">
+    <!-- 전체 배지 -->
+    <select id="getAllBadge" resultType="com.sist.back.vo.BadgeVO">
+        SELECT * FROM badge
+        WHERE isdeleted = 0
+    </select>
+
+    <!-- 비활성화 배지 -->
+    <select id="getAllOffBadge" resultType="com.sist.back.vo.BadgeVO">
+        SELECT * FROM badge
+        WHERE isdeleted = 1
+    </select>
+
+    <!-- 사용자 소유 배지 -->
+    <select id="getBadge" parameterType="String" resultType="com.sist.back.vo.BadgeVO">
+        SELECT b.*, ub.isrepresent 
+        FROM badge b 
+        JOIN userbadge ub ON b.badgekey = ub.badgekey
+        WHERE ub.userkey = #{userkey} AND b.isdeleted = 0
+    </select>
+
+    <!-- 사용자 소유 배지 개수 -->
+    <select id="getBadgeCount" parameterType="String" resultType="int">
+        SELECT COUNT(*) 
+        FROM badge b 
+        JOIN userbadge ub ON b.badgekey = ub.badgekey
+        WHERE ub.userkey = #{userkey} AND b.isdeleted = 0
+    </select>
+
+
+    <!-- 대표 배지 설정 -->
+    <update id="representBadge" parameterType="map">
+        UPDATE userbadge ub
+        SET ub.isrepresent = CASE
+            WHEN ub.badgekey = #{badgekey} AND EXISTS (
+                SELECT 1
+                FROM badge b
+                WHERE b.badgekey = ub.badgekey
+                AND b.isrepresentable = 1
+            ) THEN 1
+            ELSE 0
+        END
+        WHERE ub.userkey = #{userkey}
+    </update>
+
+    <!-- 대표 배지 취소 -->
+    <update id="cancelRep" parameterType="map">
+        UPDATE userbadge
+        SET isrepresent = 0
+        WHERE userkey = #{userkey} AND badgekey = #{badgekey}
+    </update>
+
+    <!-- 배지 부여 -->
+    <insert id="giveBadge" parameterType="string">
+        INSERT INTO userbadge (userkey, badgekey, create_dtm, isrepresent)
+        <!-- 다른 테이블에서 데이터를 선택하고 삽입할 때는 VALUES 대신에 SELECT -->
+        SELECT #{userkey}, 1, NOW(), 0 FROM manner
+        WHERE userkey = #{userkey}
+        AND estimateuserkey = #{userkey}
+        AND 1 NOT IN (SELECT badgekey FROM userbadge WHERE userkey = #{userkey})
+        HAVING COUNT(*) &gt;= 1
+
+        UNION ALL
+
+        SELECT #{userkey}, 2, NOW(), 0 FROM keyword
+        WHERE userkey = #{userkey}
+        AND 2 NOT IN (SELECT badgekey FROM userbadge WHERE userkey = #{userkey})
+        HAVING COUNT(*) &gt;= 1
+
+        UNION ALL
+
+        SELECT #{userkey}, 3, NOW(), 0 FROM manner
+        WHERE userkey = #{userkey}
+        AND estimateuserkey = #{userkey}
+        AND 3 NOT IN (SELECT badgekey FROM userbadge WHERE userkey = #{userkey})
+        HAVING COUNT(*) &gt;= 5
+
+        UNION ALL
+
+        SELECT #{userkey}, 4, NOW(), 0 FROM post
+        WHERE userkey = #{userkey}
+        AND 4 NOT IN (SELECT badgekey FROM userbadge WHERE userkey = #{userkey})
+        HAVING COUNT(*) &gt;= 20
+
+        UNION ALL
+
+        SELECT #{userkey}, 5, NOW(), 0 FROM manner
+        WHERE userkey = #{userkey}
+        AND reviewlistkey IN (5, 12, 26, 30)
+        AND 5 NOT IN (SELECT badgekey FROM userbadge WHERE userkey = #{userkey})
+        HAVING COUNT(*) &gt;= 5
+
+        UNION ALL
+
+        SELECT #{userkey}, 6, NOW(), 0 FROM manner
+        WHERE userkey = #{userkey}
+        AND estimateuserkey = #{userkey}
+        AND 6 NOT IN (SELECT badgekey FROM userbadge WHERE userkey = #{userkey})
+        HAVING COUNT(*) &gt;= 10
+
+        UNION ALL
+
+        SELECT #{userkey}, 7, NOW(), 0 FROM post
+        WHERE userkey = #{userkey}
+        AND 7 NOT IN (SELECT badgekey FROM userbadge WHERE userkey = #{userkey})
+        HAVING COUNT(*) &gt;= 1
+
+        UNION ALL
+
+        SELECT #{userkey}, 8, NOW(), 0 FROM post
+        WHERE userkey = #{userkey}
+        AND 8 NOT IN (SELECT badgekey FROM userbadge WHERE userkey = #{userkey})
+        HAVING COUNT(*) &gt;= 5
+
+        UNION ALL
+
+        SELECT #{userkey}, 9, NOW(), 0 FROM manner
+        WHERE userkey = #{userkey}
+        AND ismanner = 1
+        AND 9 NOT IN (SELECT badgekey FROM userbadge WHERE userkey = #{userkey})
+        HAVING COUNT(*) &gt;= 1
+
+        UNION ALL SELECT #{userkey}, 10, NOW(), 0
+        FROM post
+        WHERE userkey = #{userkey}
+        AND 10 NOT IN (SELECT badgekey FROM userbadge WHERE userkey = #{userkey})
+        HAVING COUNT(*) &gt;= 50;
+    </insert>
+
+    <!-- 배지 편집 -->
+    <update id="editBadge" parameterType="map">
+        UPDATE badge
+        SET name = #{name}, imgurl = #{imgurl}, precontent = #{precontent}, postcontent = #{postcontent}, isrepresentable = #{isrepresentable}
+        WHERE badgekey = #{badgekey}
+    </update>
+
+    <!-- 배지 비활성화 -->
+    <update id="badgeOff" parameterType="String">
+        UPDATE badge
+        SET isdeleted = 1, delete_dtm = NOW()
+        WHERE badgekey = #{badgekey}
+    </update>
+
+    <!-- 배지 활성화 -->
+    <update id="badgeOn" parameterType="String">
+        UPDATE badge
+        SET isdeleted = 0, update_dtm = NOW()
+        WHERE badgekey = #{badgekey}
+    </update>
+</mapper>
+
